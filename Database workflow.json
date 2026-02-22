@@ -1,0 +1,603 @@
+{
+  "name": "Database workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "newindex",
+          "mode": "list",
+          "cachedResultName": "newindex"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        -528
+      ],
+      "id": "a86c8240-7b89-49dd-bfe0-4418afa95da0",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "2ityx4vuTeeRqhRh",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 200,
+        "options": {
+          "splitCode": "markdown"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -128
+      ],
+      "id": "a2798ad6-8632-4bf3-80c8-2eac24d1540b",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "modelName": "=BAAI/bge-large-en-v1.5",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsHuggingFaceInference",
+      "typeVersion": 1,
+      "position": [
+        672,
+        -128
+      ],
+      "id": "10bba1ec-685b-4366-a73f-06b43f62d34e",
+      "name": "Embeddings HuggingFace Inference",
+      "credentials": {
+        "huggingFaceApi": {
+          "id": "6HNMzkRb5zEhWWxP",
+          "name": "HuggingFaceApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        752,
+        -336
+      ],
+      "id": "813dbd5c-7a13-422c-be70-068e02103e20",
+      "name": "Default Data Loader1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Helper function to generate a consistent unique ID\nfunction generateId(str) {\n    if (!str) return Math.random().toString(36).substring(2, 15);\n    let hash = 0;\n    for (let i = 0; i < str.length; i++) {\n        const char = str.charCodeAt(i);\n        hash = ((hash << 5) - hash) + char;\n        hash = hash & hash; \n    }\n    return Math.abs(hash).toString(16);\n}\n\n// Helper to decode HTML entities (e.g., &amp; -> &)\nfunction decodeHtml(html) {\n    const txt = document.createElement(\"textarea\");\n    txt.innerHTML = html;\n    return txt.value;\n}\n\nreturn items.map(item => {\n    // 1. Get URL safely\n    const url = (item.json.link || item.json.guid || \"\").toString().trim();\n    \n    // 2. Get Raw Content\n    let rawContent = item.json.content || item.json.contentSnippet || item.json.description || \"\";\n    \n    if (Array.isArray(rawContent)) { \n        rawContent = rawContent.join(\" \"); \n    }\n    \n    // 3. Advanced Cleaning\n    // Remove scripts and styles first\n    let cleanText = rawContent\n        .replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, \" \")\n        .replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, \" \")\n        .replace(/<[^>]*>?/gm, \" \") // Remove remaining tags\n        .replace(/&nbsp;/g, \" \")    // Decode common entities manually\n        .replace(/&amp;/g, \"&\")\n        .replace(/&lt;/g, \"<\")\n        .replace(/&gt;/g, \">\")\n        .replace(/\\s+/g, \" \")       // Normalize whitespace\n        .trim();\n\n    // Fallback if content is empty after cleaning\n    if (!cleanText || cleanText.length < 10) {\n        cleanText = `Headline: ${item.json.title || \"Untitled Article\"}`;\n    }\n\n    // 4. Generate ID based on URL to prevent duplicates\n    const uniqueId = \"doc_\" + generateId(url);\n\n    return {\n        json: {\n            // This is what gets embedded\n            pageContent: cleanText, \n            \n            // This is stored alongside the vector for filtering\n            metadata: {\n                source_url: url,\n                title: item.json.title || \"Untitled\",\n                publish_date: item.json.pubDate ? new Date(item.json.pubDate).toISOString() : new Date().toISOString(),\n                article_id: uniqueId,\n                content_source: item.json.source || \"RSS Feed\"\n            }\n        }\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -512
+      ],
+      "id": "14ca9e4e-1b3c-4975-805b-47fb6cf31f55",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -48,
+        -512
+      ],
+      "id": "db6970fd-b491-457d-bab5-f9728bfe1fc2",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -544,
+        -528
+      ],
+      "id": "46136c8b-177d-4807-8693-f419279b3f64",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "div#ContentPlaceHolder1_divContent"
+            }
+          ]
+        },
+        "options": {
+          "cleanUpText": true
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        -528
+      ],
+      "id": "86b2f298-2116-44cd-a6c1-30303130a923",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "jsCode": "function generateHash(str) {\n    let hash = 0;\n    if (!str) return Math.random().toString(36).substring(7);\n    for (let i = 0; i < str.length; i++) {\n        const char = str.charCodeAt(i);\n        hash = ((hash << 5) - hash) + char;\n        hash = hash & hash;\n    }\n    return Math.abs(hash).toString(16);\n}\n\nreturn items.map(item => {\n    const url = (item.json.link || item.json.guid || \"\").toString();\n    let rawHtml = item.json.content || item.json.contentSnippet || \"\";\n    \n    if (typeof rawHtml !== 'string') { rawHtml = JSON.stringify(rawHtml); }\n\n    const cleanText = rawHtml\n        .replace(/<[^>]*>?/gm, ' ')\n        .replace(/\\s+/g, ' ')\n        .trim();\n\n    const uniqueId = generateHash(url);\n\n    return {\n        json: {\n            // THE NEWS STORY MUST BE THE FIRST FIELD\n            pageContent: cleanText, \n            row_id: uniqueId, \n            metadata: {\n                source_url: url,\n                title: item.json.title || \"No Title\",\n                publish_date: item.json.pubDate || new Date().toISOString()\n            }\n        }\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -336
+      ],
+      "id": "a3d76ff1-86b5-4db5-98f3-83c5a6744cc3",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -48,
+        -336
+      ],
+      "id": "f320b99b-c55c-4f69-880d-6ecae9931a14",
+      "name": "Merge4"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "div.story-text",
+              "returnValue": "html"
+            }
+          ]
+        },
+        "options": {
+          "cleanUpText": false
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -304,
+        -352
+      ],
+      "id": "11241fc3-ed78-4ec9-bf15-62d0d61a3fb7",
+      "name": "HTML1"
+    },
+    {
+      "parameters": {
+        "jsCode": "function generateHash(str) {\n    let hash = 0;\n    if (!str) return Math.random().toString(36).substring(7);\n    for (let i = 0; i < str.length; i++) {\n        const char = str.charCodeAt(i);\n        hash = ((hash << 5) - hash) + char;\n        hash = hash & hash;\n    }\n    return Math.abs(hash).toString(16);\n}\n\nreturn items.map(item => {\n    const url = (item.json.link || item.json.guid || \"\").toString();\n    let rawHtml = item.json.content || item.json.contentSnippet || \"\";\n    \n    if (Array.isArray(rawHtml)) { rawHtml = rawHtml.join(\" \"); }\n    if (typeof rawHtml !== 'string') { rawHtml = JSON.stringify(rawHtml); }\n\n    const cleanText = rawHtml.replace(/<[^>]*>?/gm, ' ').replace(/\\s+/g, ' ').trim();\n    \n    // We create a clean \"pageContent\" and hide the ID inside Metadata\n    // to stop the node from using the ID as the news text.\n    const finalContent = cleanText || (\"Headline: \" + item.json.title);\n    const uniqueId = generateHash(url);\n\n    return {\n        json: {\n            pageContent: finalContent, \n            metadata: {\n                source_url: url,\n                title: item.json.title || \"No Title\",\n                publish_date: item.json.pubDate || new Date().toISOString(),\n                article_id: uniqueId // Storing ID here instead\n            }\n        }\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -144
+      ],
+      "id": "94161828-98f1-4f11-b992-20e66deeed6a",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -48,
+        -144
+      ],
+      "id": "54c68050-f650-4b3e-9a4e-56f0153caef4",
+      "name": "Merge5"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -576,
+        -160
+      ],
+      "id": "f37b60a6-4849-4c2e-8d9f-ff4f5524c8dc",
+      "name": "HTTP Request5"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "div[data-component=\"text-block\"], p"
+            }
+          ]
+        },
+        "options": {
+          "cleanUpText": true
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -320,
+        -160
+      ],
+      "id": "b2ef2843-0e9f-4b8b-9dc0-19257eedba82",
+      "name": "HTML5"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "triggerAtMinute": 32
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1216,
+        -368
+      ],
+      "id": "e3a8b298-3743-49a0-ad92-1bae9eb33d08",
+      "name": "Schedule Trigger",
+      "executeOnce": true,
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "https://rss.app/feeds/ZbpjytGGXuGSvyhV.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        -528
+      ],
+      "id": "313bc559-c5fd-4bc9-833c-0e87cd9a9ad4",
+      "name": "RSS Read PIB1"
+    },
+    {
+      "parameters": {
+        "url": "https://rss.app/feeds/kmdJYQ1ogjWjKLYA.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        -352
+      ],
+      "id": "429e73d1-9e25-42be-862e-083b84a968fb",
+      "name": "RSS Read PTI1"
+    },
+    {
+      "parameters": {
+        "url": "https://feeds.bbci.co.uk/news/world/asia/india/rss.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        -160
+      ],
+      "id": "b22d2450-d0c3-4662-b887-1964d34554b7",
+      "name": "RSS Read BBC1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -528,
+        -352
+      ],
+      "id": "89078893-253d-4f33-aeb9-d162706eb2b6",
+      "name": "HTTP Request6"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader1",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings HuggingFace Inference": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "main": [
+        []
+      ]
+    },
+    "Default Data Loader1": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge4": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML1": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge5": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request5": {
+      "main": [
+        [
+          {
+            "node": "HTML5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML5": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Read PIB1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read BBC1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read PTI1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read PIB1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "RSS Read PTI1": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "HTTP Request6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read BBC1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request5",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request6": {
+      "main": [
+        [
+          {
+            "node": "HTML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b682356f-6fac-4b68-9f33-adc5a789bcd9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "50c46f041e70503100d3fae23269f191deaf09e552b84f4aa5a85ef5b296bdeb"
+  },
+  "id": "WvzuumfkpjeGZEDx",
+  "tags": []
+}
