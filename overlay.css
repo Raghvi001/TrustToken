@@ -1,0 +1,16 @@
+.trust-overlay {
+  position: fixed;
+  top: 20px;
+  right: -300px;
+  width: 260px;
+  background: #0e1621;
+  color: white;
+  border-radius: 12px;
+  padding: 16px;
+  z-index: 999999;
+  transition: right 0.4s ease-in-out;
+}
+
+.trust-overlay.show {
+  right: 20px;
+}
